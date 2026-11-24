@@ -135,6 +135,12 @@ create policy "profiles_update_own" on public.profiles
   for update using (id = auth.uid())
   with check (id = auth.uid());  -- guard_profile_privilege() rejects role edits
 
+-- P-15: managers may update RIDER rows (enable/disable). The trigger still
+-- rejects any role change attempted through this policy.
+create policy "profiles_manager_toggle_riders" on public.profiles
+  for update using (public.my_role() = 'manager' and role = 'rider')
+  with check (public.my_role() = 'manager' and role = 'rider');
+
 create policy "profiles_admin_all" on public.profiles
   for all using (public.is_admin()) with check (public.is_admin());
 
