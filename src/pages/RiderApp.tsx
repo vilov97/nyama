@@ -96,7 +96,7 @@ export default function RiderApp() {
                     {r.status === "assigned" && (
                       <button
                         disabled={busyId === r.id}
-                        onClick={void advance(r.id, "picked_up")}
+                        onClick={() => void advance(r.id, "picked_up")}
                         className={smallBtnCls}
                       >
                         Mark picked up
@@ -106,14 +106,14 @@ export default function RiderApp() {
                       <>
                         <button
                           disabled={busyId === r.id}
-                          onClick={void advance(r.id, "delivered")}
+                          onClick={() => void advance(r.id, "delivered")}
                           className={`${smallBtnCls} border-neutral-900 bg-[#ffe500] text-neutral-900`}
                         >
                           Mark delivered
                         </button>
                         <button
                           disabled={busyId === r.id}
-                          onClick={void advance(r.id, "failed")}
+                          onClick={() => void advance(r.id, "failed")}
                           className={smallBtnCls}
                         >
                           Failed

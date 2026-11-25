@@ -109,7 +109,7 @@ export default function MfaEnrollPage() {
               Can&apos;t scan? Enter this secret manually:{" "}
               <code className="break-all font-bold">{secret}</code>
             </div>
-            <form onSubmit={void handleVerify} className="space-y-4">
+            <form onSubmit={handleVerify} className="space-y-4">
               <div>
                 <label className={labelCls} htmlFor="code">6-digit code</label>
                 <input

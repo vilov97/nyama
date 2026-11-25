@@ -202,7 +202,7 @@ export default function ManagerApp() {
                           {s.role === "rider" ? (
                             <button
                               disabled={busy === s.id}
-                              onClick={void toggleRiderActive(s.id, !s.is_active)}
+                              onClick={() => void toggleRiderActive(s.id, !s.is_active)}
                               className={smallBtnCls}
                             >
                               {s.is_active ? "Disable" : "Enable"}
@@ -237,7 +237,7 @@ export default function ManagerApp() {
                     </p>
                     <button
                       disabled={busy === m.id}
-                      onClick={void toggleMenuItem(m.id, !m.is_available)}
+                      onClick={() => void toggleMenuItem(m.id, !m.is_available)}
                       className={smallBtnCls}
                     >
                       {m.is_available ? "Mark sold out" : "Mark available"}

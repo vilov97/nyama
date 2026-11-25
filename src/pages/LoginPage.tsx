@@ -118,7 +118,7 @@ export default function LoginPage() {
       {error && <div className={errorBoxCls}>{error}</div>}
 
       {step === "credentials" ? (
-        <form onSubmit={void handleCredentials} className="space-y-4">
+        <form onSubmit={handleCredentials} className="space-y-4">
           <div>
             <label className={labelCls} htmlFor="email">Email</label>
             <input
@@ -148,7 +148,7 @@ export default function LoginPage() {
           </div>
         </form>
       ) : (
-        <form onSubmit={void handleMfa} className="space-y-4">
+        <form onSubmit={handleMfa} className="space-y-4">
           <div className={infoBoxCls}>
             Password accepted. This account is protected with two-factor
             authentication.

@@ -52,7 +52,7 @@ export default function ForbiddenPage() {
         </Link>
         {user && (
           <button
-            onClick={void handleSignOut}
+            onClick={handleSignOut}
             className="cursor-pointer py-1 text-center text-xs text-neutral-500 underline hover:text-neutral-900"
           >
             Sign out

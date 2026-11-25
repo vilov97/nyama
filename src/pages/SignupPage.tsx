@@ -92,7 +92,7 @@ export default function SignupPage() {
           </Link>
         </div>
       ) : (
-        <form onSubmit={void handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className={labelCls} htmlFor="name">Full name</label>
             <input

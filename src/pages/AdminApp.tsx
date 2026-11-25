@@ -152,7 +152,7 @@ export default function AdminApp() {
                         <td className={tdCls}>
                           <button
                             disabled={busy === p.id}
-                            onClick={void setActive(p.id, !p.is_active)}
+                            onClick={() => void setActive(p.id, !p.is_active)}
                             className={smallBtnCls}
                           >
                             {p.is_active ? "Disable" : "Enable"}

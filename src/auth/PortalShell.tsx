@@ -39,7 +39,7 @@ export default function PortalShell({
               {user?.email}
             </span>
             <button
-              onClick={void handleSignOut}
+              onClick={handleSignOut}
               className="cursor-pointer border border-neutral-300 px-3 py-1.5 text-[0.6rem] font-bold uppercase tracking-widest text-neutral-600 transition-colors hover:border-neutral-900 hover:text-neutral-900"
             >
               Sign out
