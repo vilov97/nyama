@@ -219,7 +219,7 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAAA...
 
 ## 8. Operational runbooks (one-paragraphers for Phase 2/4)
 
-- **Disable user / ex-staff (T-RBAC-08):** Dashboard → Auth → user → Ban/disable; `update profiles set is_active=false, role='customer'` (admin, logged by trigger); `auth.admin.signOut(userId)` to revoke sessions; verify in `audit_logs`. Target: < 1h from request.
+- **Disable user / ex-staff (T-RBAC-08):** `is_active=false` alone does NOT block login (Auth/RLS don't read it) — run all three steps. (1) App: Admin panel → user → Disable (logged by trigger). (2) Ban + demote in SQL (service context): `update auth.users set banned_until = now() + make_interval(years => 100) where email = '<email>'; update public.profiles set role='customer' where id = '<id>';` — banned users get "user is banned" on login *and* refresh, killing old tokens within 1h. (3) Revoke sessions now: Dashboard → Auth → user → Sign out (or `auth.admin.signOut`). Verify in `audit_logs`. Target: < 1h from request. Phase-2 hardening: add `is_active` check into RLS via a security-definer function so disable is instant at the data layer.
 - **Promote to manager/rider:** admin updates `profiles.role` (trigger logs + hook mirrors claim); user re-logs in; MFA enrollment forced on next staff login.
 - **Key rotation:** rotate service-role key in Supabase → update edge-function/CI secrets → redeploy → verify audit + callbacks; rotate Turnstile/Daraja on the same calendar (yearly or on incident).
 - **Breach response (Kenya DPA 72h):** contain (revoke keys/sessions) → assess scope via `audit_logs` → notify ODPC + subjects within 72h → post-mortem + audit v2.
