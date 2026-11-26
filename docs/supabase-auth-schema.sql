@@ -36,6 +36,11 @@ create table if not exists public.profiles (
   phone       text,                       -- E.164, e.g. +2547XXXXXXXX
   branch_id   text         not null default 'nairobi-hq',  -- future ABAC scope
   is_active   boolean      not null default true,          -- false = deprovisioned
+  -- Phase 3 dispatch map: customer drop pin + rider run size.
+  drop_address text,
+  drop_lat     double precision,
+  drop_lng     double precision,
+  max_stops    integer      not null default 5,
   created_at  timestamptz  not null default now(),
   updated_at  timestamptz  not null default now()
 );
@@ -179,6 +184,12 @@ create table if not exists public.orders (
   is_paid      boolean not null default false,  -- service-role ONLY (§5.4)
   pay_ref      text,                             -- Daraja receipt id
   drop_note    text,                             -- delivery instructions
+  -- Phase 3 dispatch map: pin snapshot + route bucket (no live tracking).
+  drop_lat       double precision,
+  drop_lng       double precision,
+  route_id       uuid references public.routes (id) on delete set null,
+  receiver       text,
+  receiver_phone text,
   created_at   timestamptz not null default now()
 );
 
@@ -221,6 +232,35 @@ drop trigger if exists guard_payment_columns on public.orders;
 create trigger guard_payment_columns
   before update on public.orders
   for each row execute function public.guard_payment_columns();
+
+-- --------------------------------------------------------------------------
+-- Routes (§ Phase 3 dispatch map): named directions, one colour each.
+-- Static assignment aid only — the product does NOT do live GPS tracking.
+-- --------------------------------------------------------------------------
+create table if not exists public.routes (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null unique,
+  color      text not null default '#ffe500',
+  created_at timestamptz not null default now()
+);
+
+alter table public.routes enable row level security;
+
+create policy "routes_read_all" on public.routes
+  for select using (auth.uid() is not null);
+
+create policy "routes_manager_all" on public.routes
+  for all using (public.is_manager_or_admin())
+  with check (public.is_manager_or_admin());
+
+insert into public.routes (name, color) values
+  ('Karen / Langata',      '#e11d48'),
+  ('Westlands / Parklands','#2563eb'),
+  ('Kilimani / Kileleshwa','#16a34a'),
+  ('Eastlands / Embakasi', '#a855f7'),
+  ('CBD / Industrial Area','#f97316'),
+  ('Kikuyu / Ngong',       '#0891b2')
+on conflict (name) do nothing;
 
 -- Deliveries: riders see/update ONLY assigned active runs (P-11/12).
 create table if not exists public.deliveries (

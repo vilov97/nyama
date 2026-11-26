@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabase } from "../lib/supabase";
+import DispatchBoard from "./DispatchBoard";
 import PortalShell, {
   Card,
   Empty,
@@ -144,6 +145,8 @@ export default function ManagerApp() {
               </div>
             ))}
           </div>
+
+          <DispatchBoard />
 
           <Card title="Recent orders">
             {orders.length === 0 ? (

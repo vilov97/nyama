@@ -12,6 +12,7 @@ import AuthLayout, {
 import PasswordInput from "../auth/PasswordInput";
 import SetupNotice from "../components/SetupNotice";
 import { authErrorDetail, describeAuthError } from "../lib/authErrors";
+import LocationPicker, { type PickedLocation } from "../components/LocationPicker";
 
 /**
  * Customer self-registration. New accounts are ALWAYS created with the
@@ -24,6 +25,7 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [drop, setDrop] = useState<PickedLocation | null>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +56,7 @@ export default function SignupPage() {
           data: {
             full_name: fullName.trim(),
             phone: phone.trim() || null,
+            drop_address: drop?.address?.trim() || null,
           },
         },
       });
@@ -70,6 +73,27 @@ export default function SignupPage() {
         setError(describeAuthError(signErr) ?? "Could not create the account. Please try again.");
         setDetail(authErrorDetail(signErr));
         return;
+      }
+      // Coordinates aren't user metadata; persist them on the profile row so the
+      // manager's map can pin this customer. Best-effort — never blocks signup.
+      if (drop) {
+        try {
+          const sb2 = getSupabase();
+          const { data: sess } = await sb2.auth.getSession();
+          const uid = sess.session?.user.id;
+          if (uid) {
+            await sb2
+              .from("profiles")
+              .update({
+                drop_lat: drop.lat,
+                drop_lng: drop.lng,
+                drop_address: drop.address?.trim() || null,
+              })
+              .eq("id", uid);
+          }
+        } catch {
+          /* non-fatal */
+        }
       }
       setDone(true);
     } catch (err) {
@@ -135,6 +159,7 @@ export default function SignupPage() {
               onChange={(e) => setPhone(e.target.value)}
             />
           </div>
+          <LocationPicker value={drop} onChange={setDrop} inputCls={inputCls} labelCls={labelCls} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className={labelCls} htmlFor="password">Password (8+ chars)</label>
