@@ -11,6 +11,7 @@ import AuthLayout, {
 } from "../auth/AuthLayout";
 import PasswordInput from "../auth/PasswordInput";
 import SetupNotice from "../components/SetupNotice";
+import { authErrorDetail, describeAuthError } from "../lib/authErrors";
 
 /**
  * Customer self-registration. New accounts are ALWAYS created with the
@@ -26,6 +27,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -34,6 +36,7 @@ export default function SignupPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setDetail(null);
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
@@ -64,12 +67,14 @@ export default function SignupPage() {
           setError("That password is not allowed (too weak or previously breached). Try a longer, unique one.");
           return;
         }
-        setError("Could not create the account. Please try again.");
+        setError(describeAuthError(signErr) ?? "Could not create the account. Please try again.");
+        setDetail(authErrorDetail(signErr));
         return;
       }
       setDone(true);
-    } catch {
+    } catch (err) {
       setError("Could not create the account. Please try again.");
+      setDetail(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -81,7 +86,17 @@ export default function SignupPage() {
       title="Create your account"
       subtitle="Order nyama choma online and track delivery to your door."
     >
-      {error && <div className={errorBoxCls}>{error}</div>}
+      {error && (
+        <div className={errorBoxCls}>
+          {error}
+          {detail && (
+            <details className="mt-1.5 opacity-70">
+              <summary className="cursor-pointer select-none">Technical details</summary>
+              <p className="mt-1 break-words font-mono text-[0.65rem] leading-snug">{detail}</p>
+            </details>
+          )}
+        </div>
+      )}
       {done ? (
         <div>
           <div className={infoBoxCls}>

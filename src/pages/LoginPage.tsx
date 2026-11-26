@@ -12,6 +12,7 @@ import AuthLayout, {
 import PasswordInput from "../auth/PasswordInput";
 import { homeForRole } from "../auth/roles";
 import SetupNotice from "../components/SetupNotice";
+import { authErrorDetail, describeAuthError } from "../lib/authErrors";
 
 /**
  * Email+password login with TOTP second step when the account has a
@@ -30,6 +31,7 @@ export default function LoginPage() {
   const [factorId, setFactorId] = useState("");
   const [challengeId, setChallengeId] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   if (!configured) return <SetupNotice />;
@@ -48,6 +50,7 @@ export default function LoginPage() {
   const handleCredentials = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setDetail(null);
     setBusy(true);
     try {
       const sb = getSupabase();
@@ -56,7 +59,8 @@ export default function LoginPage() {
         password,
       });
       if (signErr || !data.user) {
-        setError("Invalid credentials. Please try again.");
+        setError(describeAuthError(signErr) ?? "Invalid email or password. Please try again.");
+        setDetail(authErrorDetail(signErr));
         return;
       }
       const { data: factors } = await sb.auth.mfa.listFactors();
@@ -86,6 +90,7 @@ export default function LoginPage() {
   const handleMfa = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setDetail(null);
     setBusy(true);
     try {
       const sb = getSupabase();
@@ -96,6 +101,7 @@ export default function LoginPage() {
       });
       if (vErr || !data.user) {
         setError("Invalid authentication code. Please try again.");
+        setDetail(authErrorDetail(vErr));
         return;
       }
       await roleAndGo(data.user.id);
@@ -116,7 +122,17 @@ export default function LoginPage() {
           : "Staff and customers sign in here. Riders and managers get their accounts from an admin."
       }
     >
-      {error && <div className={errorBoxCls}>{error}</div>}
+      {error && (
+        <div className={errorBoxCls}>
+          {error}
+          {detail && (
+            <details className="mt-1.5 opacity-70">
+              <summary className="cursor-pointer select-none">Technical details</summary>
+              <p className="mt-1 break-words font-mono text-[0.65rem] leading-snug">{detail}</p>
+            </details>
+          )}
+        </div>
+      )}
 
       {step === "credentials" ? (
         <form onSubmit={handleCredentials} className="space-y-4">
