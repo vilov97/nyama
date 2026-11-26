@@ -120,3 +120,14 @@ describe("pinColor", () => {
     expect(pinColor("#fff")).toBe("#737373");
   });
 });
+
+describe("robustness", () => {
+  it("never renders 'undefined' when the cap is missing", () => {
+    // @ts-expect-error deliberately wrong runtime input
+    expect(capacityLabel(1, undefined)).toBe("Full — 1 of 1");
+    // @ts-expect-error deliberately wrong runtime input
+    expect(capacityLabel(2, undefined)).toBe("Overloaded — 2 of 1");
+    // @ts-expect-error deliberately wrong runtime input
+    expect(capacityLabel(3, null)).toBe("Overloaded — 3 of 1");
+  });
+});

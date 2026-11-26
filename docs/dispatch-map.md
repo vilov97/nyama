@@ -101,7 +101,13 @@ the CSP — that is the tighter configuration and worth doing before production.
 
 ## Tests
 
-`src/lib/dispatch.test.ts` — 17 tests: haversine symmetry/zero-distance,
+`src/lib/dispatch.test.ts` — 18 tests: haversine symmetry/zero-distance,
 nearest-neighbour determinism, never-worse-than-input ordering, return-leg
-inclusion, capacity thresholds (including a zero cap), metre/km formatting and
-colour validation.
+inclusion, capacity thresholds (including a zero/missing cap), metre/km
+formatting and colour validation.
+
+`src/pages/DispatchBoard.test.tsx` — 4 jsdom render tests against a chainable
+Supabase stub that honours `.eq()` filters: the no-tracking promise, the
+per-direction legend, rider-run capacity readout, and the unassigned list.
+
+Total suite: 37 tests (`npm test`).

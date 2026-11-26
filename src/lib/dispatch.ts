@@ -77,17 +77,18 @@ export type CapacityState = "ok" | "near" | "over";
 
 /** Compare a run's stop count against the rider's cap. */
 export function capacityState(stopCount: number, maxStops: number): CapacityState {
-  const cap = maxStops > 0 ? maxStops : 1;
+  const cap = Number.isFinite(maxStops) && maxStops > 0 ? maxStops : 1;
   if (stopCount > cap) return "over";
   if (stopCount === cap) return "near";
   return "ok";
 }
 
 export function capacityLabel(stopCount: number, maxStops: number): string {
+  const cap = Number.isFinite(maxStops) && maxStops > 0 ? maxStops : 1;
   const state = capacityState(stopCount, maxStops);
-  if (state === "over") return `Overloaded — ${stopCount} of ${maxStops}`;
-  if (state === "near") return `Full — ${stopCount} of ${maxStops}`;
-  return `${stopCount} of ${maxStops} stops`;
+  if (state === "over") return `Overloaded — ${stopCount} of ${cap}`;
+  if (state === "near") return `Full — ${stopCount} of ${cap}`;
+  return `${stopCount} of ${cap} stops`;
 }
 
 /** Compact "12.4 km" style label. */
