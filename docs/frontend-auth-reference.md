@@ -223,3 +223,33 @@ VITE_TURNSTILE_SITE_KEY=0x4AAAAAA...
 - **Promote to manager/rider:** admin updates `profiles.role` (trigger logs + hook mirrors claim); user re-logs in; MFA enrollment forced on next staff login.
 - **Key rotation:** rotate service-role key in Supabase → update edge-function/CI secrets → redeploy → verify audit + callbacks; rotate Turnstile/Daraja on the same calendar (yearly or on incident).
 - **Breach response (Kenya DPA 72h):** contain (revoke keys/sessions) → assess scope via `audit_logs` → notify ODPC + subjects within 72h → post-mortem + audit v2.
+
+---
+
+## Never hand-insert `auth.users` without the full column set
+
+Creating an account with raw SQL is the most common way to break sign-in on this
+project. Two independent traps:
+
+1. **Missing identity** — GoTrue resolves an email login through
+   `auth.identities`. A user row without a matching email identity rejects every
+   correct password.
+2. **NULL in a scanned column** — the Go driver cannot scan NULL into a plain
+   `bool` or `string`. A row with `is_super_admin IS NULL` (or NULL
+   `confirmation_token`, `recovery_token`, `email_change`,
+   `email_change_token_new`) makes the whole lookup fail, and GoTrue returns the
+   generic **500 "Database error querying schema"** — which looks like an outage,
+   not a data problem.
+
+`instance_id` must also point at a row in `auth.instances` (or be
+`00000000-0000-0000-0000-000000000000`), and `created_at` must be set.
+
+**Preferred path:** create staff accounts through GoTrue (Dashboard → Users, or
+the app's signup) and then set the role. If you must use SQL, run
+[`docs/checks/auth-health.sql`](./checks/auth-health.sql) immediately afterwards —
+it returns zero rows only when every account is login-safe.
+
+Also remember: the SQL connector runs as `postgres`, which has
+`rolbypassrls = true`. Any RLS test that only sets `request.jwt.claims` will
+silently bypass policies and report false leaks. Use `public.rls_probe_as(email)`,
+which switches to the `authenticated` role too.
