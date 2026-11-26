@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import type { User } from "@supabase/supabase-js";
 import { getSupabase, type AppRole } from "../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
 import AuthLayout, {
@@ -36,13 +37,27 @@ export default function LoginPage() {
 
   if (!configured) return <SetupNotice />;
 
-  const roleAndGo = async (userId: string) => {
-    const { data } = await getSupabase()
+  const roleAndGo = async (user: User) => {
+    // Prefer the signed app_metadata claim: it is authoritative for routing and
+    // still works when the profiles read is unavailable (e.g. token-verification
+    // problems), so a valid admin is never silently sent to the customer portal.
+    const claimed = (user.app_metadata as { user_role?: AppRole } | undefined)?.user_role;
+    let role: AppRole = claimed ?? "customer";
+
+    const { data, error } = await getSupabase()
       .from("profiles")
       .select("role")
-      .eq("id", userId)
+      .eq("id", user.id)
       .single();
-    const role = (data?.role as AppRole | undefined) ?? "customer";
+    if (!error && data?.role) {
+      role = data.role as AppRole;
+    } else if (!claimed) {
+      setError(
+        "Signed in, but your role could not be loaded. Ask an admin to check your account."
+      );
+      setDetail(error?.message ?? null);
+    }
+
     await refreshProfile();
     navigate(homeForRole(role), { replace: true });
   };
@@ -79,7 +94,7 @@ export default function LoginPage() {
         setStep("mfa");
         return;
       }
-      await roleAndGo(data.user.id);
+      await roleAndGo(data.user);
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -104,7 +119,7 @@ export default function LoginPage() {
         setDetail(authErrorDetail(vErr));
         return;
       }
-      await roleAndGo(data.user.id);
+      await roleAndGo(data.user);
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {

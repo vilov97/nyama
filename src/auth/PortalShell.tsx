@@ -12,7 +12,7 @@ export default function PortalShell({
   title: string;
   children: ReactNode;
 }) {
-  const { user, role, signOutEverywhere } = useAuth();
+  const { user, role, roleError, signOutEverywhere } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -54,6 +54,12 @@ export default function PortalShell({
         <h1 className="mb-6 text-2xl font-light tracking-tighter text-neutral-900">
           {title}
         </h1>
+        {roleError && (
+          <div className="mb-6 border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-800">
+            <strong>Limited mode.</strong> {roleError} Some panels may be empty until this is
+            resolved — this is a backend permission problem, not an account problem.
+          </div>
+        )}
         {children}
       </main>
     </div>
