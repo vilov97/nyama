@@ -9,6 +9,7 @@ import AuthLayout, {
   labelCls,
   primaryBtnCls,
 } from "../auth/AuthLayout";
+import PasswordInput from "../auth/PasswordInput";
 import SetupNotice from "../components/SetupNotice";
 
 /**
@@ -122,18 +123,22 @@ export default function SignupPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className={labelCls} htmlFor="password">Password (8+ chars)</label>
-              <input
-                id="password" type="password" required autoComplete="new-password"
-                className={inputCls} placeholder="••••••••" value={password}
-                onChange={(e) => setPassword(e.target.value)}
+              <PasswordInput
+                id="password"
+                autoComplete="new-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={setPassword}
               />
             </div>
             <div>
               <label className={labelCls} htmlFor="confirm">Confirm password</label>
-              <input
-                id="confirm" type="password" required autoComplete="new-password"
-                className={inputCls} placeholder="••••••••" value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
+              <PasswordInput
+                id="confirm"
+                autoComplete="new-password"
+                placeholder="••••••••"
+                value={confirm}
+                onChange={setConfirm}
               />
             </div>
           </div>

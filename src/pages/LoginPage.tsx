@@ -9,6 +9,7 @@ import AuthLayout, {
   labelCls,
   primaryBtnCls,
 } from "../auth/AuthLayout";
+import PasswordInput from "../auth/PasswordInput";
 import { homeForRole } from "../auth/roles";
 import SetupNotice from "../components/SetupNotice";
 
@@ -129,10 +130,12 @@ export default function LoginPage() {
           </div>
           <div>
             <label className={labelCls} htmlFor="password">Password</label>
-            <input
-              id="password" type="password" required autoComplete="current-password"
-              className={inputCls} placeholder="••••••••"
-              value={password} onChange={(e) => setPassword(e.target.value)}
+            <PasswordInput
+              id="password"
+              autoComplete="current-password"
+              placeholder="••••••••"
+              value={password}
+              onChange={setPassword}
             />
           </div>
           <button type="submit" disabled={busy} className={primaryBtnCls}>
