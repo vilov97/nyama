@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabase } from "../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
-import PortalShell, { Card, Empty, portalErrorCls, tdCls, thCls } from "../auth/PortalShell";
+import { Link } from "react-router-dom";
+import PortalShell, { Card, Empty, portalErrorCls, smallBtnCls, tdCls, thCls } from "../auth/PortalShell";
 
 type Order = {
   id: string;
@@ -66,6 +67,22 @@ export default function CustomerApp() {
   return (
     <PortalShell kicker="Customer · Online shop" title="My orders">
       {error && <div className={portalErrorCls}>{error}</div>}
+
+      <div className="mb-4 flex items-center justify-between gap-2 border border-neutral-900 bg-neutral-900 px-4 py-3">
+        <div>
+          <p className="text-[0.55rem] font-bold uppercase tracking-[0.15em] text-[#ffe500]">
+            Hungry?
+          </p>
+          <p className="text-sm font-bold text-white">Order now — we cut it when you order.</p>
+        </div>
+        <Link
+          to="/app/new"
+          className={`${smallBtnCls} shrink-0 border-[#ffe500] bg-[#ffe500] text-neutral-900`}
+        >
+          New order
+        </Link>
+      </div>
+
       {loading ? (
         <p className="py-8 text-center text-xs uppercase tracking-widest text-neutral-400">
           Loading…
@@ -82,7 +99,7 @@ export default function CustomerApp() {
 
           <Card title="Order history">
             {orders.length === 0 ? (
-              <Empty text="No orders yet — ordering opens in Phase 3." />
+              <Empty text="No orders yet. Tap New order to start one." />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">

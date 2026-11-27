@@ -173,14 +173,57 @@ insert, matching the other `rbac-*` fixtures. There is no auth-admin tool in the
 connector, and the sandbox cannot reach Supabase over HTTP, so this is the
 established path.
 
-## 9. Still open
+## 9. End-to-end proof over real HTTP (pg_net)
 
-- True end-to-end RLS proof requires a real PostgREST request. The sandbox has
-  no outbound network to Supabase, so `pg_net` or an external runner is needed.
-  The `set role authenticated` harness is the closest available substitute and
-  does evaluate real policies.
-- `order_items` is populated for fixtures only; there is no order-creation UI
-  yet, so the customer flow cannot yet produce an order with items.
+The sandbox shell cannot reach Supabase — egress to the API host is dropped even
+though TCP connects and DNS resolves. But the **database** can, via `pg_net`.
+That makes a true PostgREST-level test possible from inside SQL:
+
+```
+select net.http_post(url := '<host>/auth/v1/token?grant_type=password', ...);
+select * from net._http_response where id = <request_id>;
+```
+
+Results, each a real HTTP response:
+
+| step | endpoint | result |
+|---|---|---|
+| kitchen sign-in | `/auth/v1/token` | 200, access token |
+| kitchen reads orders | `/rest/v1/orders?select=id,total_ksh,receiver_phone` | **200, `[]`** |
+| kitchen reads queue | `/rest/v1/kitchen_queue` | 200, rows with items |
+| customer reads own orders | `/rest/v1/orders?select=id,total_ksh` | 200, 590 bytes |
+| customer creates order | `POST /rest/v1/orders` | **201** |
+| customer adds items | `POST /rest/v1/order_items` | **201** |
+| kitchen sees new order | `/rest/v1/kitchen_queue?order_id=eq.…` | 200, `2× Beef Premium` |
+
+So the kitchen boundary holds when enforced by PostgREST and RLS alone — no
+`postgres` bypass, no session-claim trick. Live JWTs were purged from
+`net._http_response` afterwards rather than left at rest.
+
+### A CTE trap worth remembering
+
+Inserting an order and its items in one statement with a data-modifying CTE
+**fails**, because the `order_items` policy's `EXISTS` check cannot see the
+row its sibling CTE is inserting into `orders`. Two sequential statements work.
+The UI already does two requests; do not "optimise" it into one CTE.
+
+## 10. Order creation
+
+`/app/new` (customer only) closes the last blocking gap: fixtures were the only
+source of orders, so the kitchen had nothing real to cook. The page:
+
+- builds a basket from available `menu_items`, integer shillings only
+- snapshots name/unit/price into `order_items` at insert time
+- requires a click-to-drop pin, rejecting a missing pin and the `(0,0)` pin
+  that would route a rider into the Atlantic
+- writes `orders` then `order_items`, and deletes the order if the item insert
+  fails, so no empty ghost order reaches the kitchen
+
+Arithmetic lives in `src/lib/basket.ts` with 22 tests rather than inline in JSX.
+
+## 11. Still open
+- No payment capture: orders are created `is_paid = false` and the cash-due
+  badge tells the rider what to collect. M-Pesa is not wired up.
 - No realtime subscriptions; boards refresh on load and via manual refresh.
 - Depot coordinate remains a placeholder.
 - Realtime, push alerts and the admin exceptions screen remain undecided.

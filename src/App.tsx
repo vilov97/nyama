@@ -8,6 +8,7 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import MfaEnrollPage from "./pages/MfaEnrollPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import CustomerApp from "./pages/CustomerApp";
+import NewOrderPage from "./pages/NewOrderPage";
 import RiderApp from "./pages/RiderApp";
 import KitchenApp from "./pages/KitchenApp";
 import ManagerApp from "./pages/ManagerApp";
@@ -35,6 +36,14 @@ export default function App() {
               <RequireAuth>
                 <MfaEnrollPage />
               </RequireAuth>
+            }
+          />
+          <Route
+            path="/app/new"
+            element={
+              <RequireRole allow={["customer"]}>
+                <NewOrderPage />
+              </RequireRole>
             }
           />
           <Route
