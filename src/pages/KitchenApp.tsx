@@ -20,11 +20,13 @@ type QueueOrder = {
 /**
  * Kitchen portal.
  *
- * Reads public.kitchen_queue, a security_invoker view that physically lacks the
- * price, phone and pin columns. The cook sees what to cook and nothing else —
- * that is the whole point of a separate `kitchen` role instead of handing out
- * manager accounts. RLS and guard_order_transitions() enforce the same boundary
- * server-side, so this is convenience, not the security boundary.
+ * Reads public.kitchen_queue and writes through the kitchen_advance() RPC.
+ * The kitchen holds no privileges at all on public.orders: RLS can filter rows
+ * but never columns, so any SELECT policy there would hand a cook the order
+ * total, the customer's phone number and their drop pin. The view does not
+ * project those columns, and the RPC whitelists allowed transitions.
+ * That is the whole point of a separate `kitchen` role rather than handing out
+ * manager accounts.
  */
 export default function KitchenApp() {
   const [orders, setOrders] = useState<QueueOrder[]>([]);
@@ -38,7 +40,7 @@ export default function KitchenApp() {
     setError(null);
     try {
       const wanted: CookStatus[] =
-        filter === "ready" ? ["ready"] : ["accepted", "preparing"];
+        filter === "ready" ? ["ready"] : ["pending", "accepted", "preparing"];
 
       const { data, error: qErr } = await getSupabase()
         .from("kitchen_queue")
