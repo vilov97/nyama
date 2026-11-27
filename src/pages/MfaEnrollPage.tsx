@@ -17,17 +17,19 @@ import SetupNotice from "../components/SetupNotice";
  * until a factor is verified (RequireRole gate, audit F-08).
  */
 export default function MfaEnrollPage() {
-  const { configured, user, role, refreshProfile } = useAuth();
+  const { configured, user, role, mfaStepUpRequired, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const started = useRef(false);
 
   const [factorId, setFactorId] = useState("");
+  const [challengeId, setChallengeId] = useState("");
   const [qr, setQr] = useState("");
   const [secret, setSecret] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [stepUp, setStepUp] = useState(false);
 
   useEffect(() => {
     if (!configured || !user || started.current) return;
@@ -35,30 +37,49 @@ export default function MfaEnrollPage() {
     const run = async () => {
       try {
         const sb = getSupabase();
-        const { data: existing } = await sb.auth.mfa.listFactors();
-        if (existing?.totp?.some((f) => f.status === "verified")) {
-          await refreshProfile();
-          navigate(homeForRole(role), { replace: true });
+        const { data: existing, error: listErr } = await sb.auth.mfa.listFactors();
+        if (listErr) {
+          setError(`Could not read your security settings: ${listErr.message}`);
           return;
         }
-        const { data, error: enrollErr } = await sb.auth.mfa.enroll({
-          factorType: "totp",
-        });
+
+        const verified = existing?.totp?.filter((f) => f.status === "verified") ?? [];
+
+        // Already has a factor but this session is aal1 → challenge it instead
+        // of enrolling a second one.
+        if (verified.length > 0 || mfaStepUpRequired) {
+          const factor = verified[0];
+          if (!factor) {
+            setError("You have a factor but it could not be loaded. Try signing out and in again.");
+            return;
+          }
+          const { data: ch, error: chErr } = await sb.auth.mfa.challenge({ factorId: factor.id });
+          if (chErr || !ch) {
+            setError(`Could not start the verification: ${chErr?.message ?? "unknown error"}`);
+            return;
+          }
+          setFactorId(factor.id);
+          setChallengeId(ch.id);
+          setStepUp(true);
+          return;
+        }
+
+        const { data, error: enrollErr } = await sb.auth.mfa.enroll({ factorType: "totp" });
         if (enrollErr || !data) {
-          setError("Could not start MFA enrollment. Please try again.");
+          setError(`Could not start MFA enrollment: ${enrollErr?.message ?? "unknown error"}`);
           return;
         }
         setFactorId(data.id);
         setQr(data.totp.qr_code);
         setSecret(data.totp.secret);
-      } catch {
-        setError("Could not start MFA enrollment. Please try again.");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not start MFA setup.");
       } finally {
         setLoading(false);
       }
     };
     void run();
-  }, [configured, user, role, refreshProfile, navigate]);
+  }, [configured, user, mfaStepUpRequired]);
 
   if (!configured) return <SetupNotice />;
 
@@ -67,18 +88,24 @@ export default function MfaEnrollPage() {
     setError(null);
     setBusy(true);
     try {
-      const { error: vErr } = await getSupabase().auth.mfa.challengeAndVerify({
-        factorId,
-        code: code.trim().replace(/\s+/g, ""),
-      });
+      const sb = getSupabase();
+      const clean = code.trim().replace(/\s+/g, "");
+      const { error: vErr } = stepUp
+        ? await sb.auth.mfa.verify({ factorId, challengeId, code: clean })
+        : await sb.auth.mfa.challengeAndVerify({ factorId, code: clean });
+
       if (vErr) {
-        setError("Invalid code. Check your authenticator app and try again.");
+        setError(
+          vErr.message.toLowerCase().includes("expired")
+            ? "That code expired. Reload the page to get a fresh one."
+            : "Invalid code. Check your authenticator app and try again."
+        );
         return;
       }
       await refreshProfile();
       navigate(homeForRole(role), { replace: true });
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -86,9 +113,13 @@ export default function MfaEnrollPage() {
 
   return (
     <AuthLayout
-      kicker="Two-factor setup"
-      title="Protect your staff account"
-      subtitle="Scan the code with Google Authenticator, 1Password, or any TOTP app, then enter the 6-digit code."
+      kicker={stepUp ? "Two-factor check" : "Two-factor setup"}
+      title={stepUp ? "Confirm it's you" : "Protect your staff account"}
+      subtitle={
+        stepUp
+          ? "Enter the 6-digit code from your authenticator app to finish signing in."
+          : "Scan the code with Google Authenticator, 1Password, or any TOTP app, then enter the 6-digit code."
+      }
     >
       {error && <div className={errorBoxCls}>{error}</div>}
       {loading ? (
@@ -98,17 +129,19 @@ export default function MfaEnrollPage() {
       ) : (
         factorId && (
           <div className="space-y-4">
-            {qr && (
+            {!stepUp && qr && (
               <div
                 className="mx-auto w-fit border border-neutral-200 bg-white p-3"
                 // Supabase returns a static QR <svg> (no scripts). Rendered as-is.
                 dangerouslySetInnerHTML={{ __html: qr }}
               />
             )}
+            {!stepUp && (
             <div className={infoBoxCls}>
               Can&apos;t scan? Enter this secret manually:{" "}
               <code className="break-all font-bold">{secret}</code>
             </div>
+            )}
             <form onSubmit={handleVerify} className="space-y-4">
               <div>
                 <label className={labelCls} htmlFor="code">6-digit code</label>
@@ -120,7 +153,7 @@ export default function MfaEnrollPage() {
                 />
               </div>
               <button type="submit" disabled={busy} className={primaryBtnCls}>
-                {busy ? "Verifying…" : "Verify & finish"}
+                {busy ? "Verifying…" : stepUp ? "Verify & sign in" : "Verify & finish"}
               </button>
             </form>
           </div>

@@ -28,6 +28,10 @@ type AuthState = {
   roleError: string | null;
   /** True when staff (manager/admin) has no verified TOTP factor (audit F-08). */
   mfaRequired: boolean;
+  /** True when a verified factor exists but the session is still aal1. */
+  mfaStepUpRequired: boolean;
+  /** 'aal1' (password only) or 'aal2' (second factor completed). */
+  aal: "aal1" | "aal2" | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
   signOutEverywhere: () => Promise<void>;
@@ -47,6 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roleSource, setRoleSource] = useState<"jwt" | "profile" | "none">("none");
   const [roleError, setRoleError] = useState<string | null>(null);
   const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaStepUpRequired, setMfaStepUpRequired] = useState(false);
+  const [aal, setAal] = useState<"aal1" | "aal2" | null>(null);
   const [loading, setLoading] = useState(true);
 
   const syncProfile = useCallback(async (user: User | undefined) => {
@@ -55,6 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRoleSource("none");
       setRoleError(null);
       setMfaRequired(false);
+      setMfaStepUpRequired(false);
+      setAal(null);
       return;
     }
 
@@ -94,18 +102,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setRole(resolved);
 
-    // Staff must enrol TOTP. A failed listFactors() must not silently clear the
-    // requirement, so fall back to "required" when the call itself fails.
+    // Staff must complete two factors. Two distinct cases:
+    //   mfaRequired        — no verified factor yet, so they must enrol
+    //   mfaStepUpRequired  — factor verified but this session is only aal1,
+    //                        so they must verify (otherwise abandoning the
+    //                        prompt would leave a usable password-only session)
     if (resolved === "manager" || resolved === "admin") {
-      const { data: factors, error: fErr } = await supabase.auth.mfa.listFactors();
-      if (fErr) {
+      const [{ data: factors, error: fErr }, { data: levels, error: lErr }] =
+        await Promise.all([
+          supabase.auth.mfa.listFactors(),
+          supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+        ]);
+
+      // A failed check must fail closed: assume the user still owes a factor.
+      if (fErr || lErr) {
         setMfaRequired(true);
+        setMfaStepUpRequired(false);
+        setAal(null);
         return;
       }
-      const verified = factors?.totp?.some((f) => f.status === "verified");
+
+      const verified = factors?.totp?.some((f) => f.status === "verified") ?? false;
       setMfaRequired(!verified);
+      setAal((levels?.currentLevel as "aal1" | "aal2" | null) ?? null);
+      setMfaStepUpRequired(
+        verified && levels?.currentLevel === "aal1" && levels?.nextLevel === "aal2"
+      );
     } else {
       setMfaRequired(false);
+      setMfaStepUpRequired(false);
+      setAal(null);
     }
   }, []);
 
@@ -154,6 +180,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoleSource("none");
     setRoleError(null);
     setMfaRequired(false);
+    setMfaStepUpRequired(false);
+    setAal(null);
   }, []);
 
   return (
@@ -166,6 +194,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         roleSource,
         roleError,
         mfaRequired,
+        mfaStepUpRequired,
+        aal,
         loading,
         refreshProfile,
         signOutEverywhere,

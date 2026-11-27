@@ -23,10 +23,12 @@ type RequireRoleProps = { allow: readonly AppRole[]; children: ReactNode };
  * UX-ONLY — RLS enforces the same rules server-side (audit §5.5).
  */
 export function RequireRole({ allow, children }: RequireRoleProps) {
-  const { configured, user, role, mfaRequired, loading } = useAuth();
+  const { configured, user, role, mfaRequired, mfaStepUpRequired, loading } = useAuth();
   if (loading) return <AuthLoading />;
   if (!configured || !user) return <Navigate to="/login" replace />;
-  if (mfaRequired) return <Navigate to="/mfa-enroll" replace />;
+  // Enrolment and step-up both live on /mfa-enroll: the one page that handles
+  // "you have no factor" and "your factor is unused in this session".
+  if (mfaRequired || mfaStepUpRequired) return <Navigate to="/mfa-enroll" replace />;
   if (!canAccess(role, allow)) return <Navigate to="/403" replace />;
   return <>{children}</>;
 }
