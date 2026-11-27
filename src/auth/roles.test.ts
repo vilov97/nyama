@@ -20,12 +20,22 @@ describe("canAccess (route-guard logic, audit T-RBAC)", () => {
   it("denies when the allow-list is empty", () => {
     expect(canAccess("admin", [])).toBe(false);
   });
+
+  it("keeps the kitchen out of management routes and managers out of the cook queue", () => {
+    expect(canAccess("kitchen", ["kitchen", "manager", "admin"])).toBe(true);
+    expect(canAccess("rider", ["kitchen", "manager", "admin"])).toBe(false);
+    expect(canAccess("customer", ["kitchen", "manager", "admin"])).toBe(false);
+    // A cook has no business in the dispatch board or the admin console.
+    expect(canAccess("kitchen", ["manager", "admin"])).toBe(false);
+    expect(canAccess("kitchen", ["admin"])).toBe(false);
+  });
 });
 
 describe("homeForRole (post-login routing)", () => {
   it("maps each role to its portal home", () => {
     expect(homeForRole("customer")).toBe("/app");
     expect(homeForRole("rider")).toBe("/ride");
+    expect(homeForRole("kitchen")).toBe("/kitchen");
     expect(homeForRole("manager")).toBe("/manager");
     expect(homeForRole("admin")).toBe("/admin");
   });

@@ -40,11 +40,21 @@ type MenuItem = {
  * enable/disable for RIDERS only (managers are admin-managed, P-16),
  * menu availability. Refund + dispatch-assignment UI lands in Phase 3.
  */
+type ShiftRow = {
+  shift_code: "morning" | "afternoon" | "evening";
+  label: string;
+  is_current: boolean;
+  managers_rostered: number;
+  kitchen_rostered: number;
+  riders_rostered: number;
+};
+
 export default function ManagerApp() {
   const [stats, setStats] = useState({ orders: 0, pending: 0, activeRuns: 0 });
   const [orders, setOrders] = useState<Order[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,7 +64,7 @@ export default function ManagerApp() {
     setError(null);
     try {
       const sb = getSupabase();
-      const [ordersCount, pendingCount, runsCount, ordersRes, staffRes, menuRes] =
+      const [ordersCount, pendingCount, runsCount, ordersRes, staffRes, menuRes, shiftRes] =
         await Promise.all([
           sb.from("orders").select("id", { count: "exact", head: true }),
           sb.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
@@ -65,8 +75,9 @@ export default function ManagerApp() {
           sb.from("profiles").select("id, full_name, role, phone, is_active")
             .in("role", ["rider", "manager"]).order("role").order("full_name"),
           sb.from("menu_items").select("id, name, price_ksh, unit, is_available").order("name"),
+          sb.from("shift_board").select("shift_code, label, is_current, managers_rostered, kitchen_rostered, riders_rostered"),
         ]);
-      const firstErr = [ordersCount, pendingCount, runsCount, ordersRes, staffRes, menuRes]
+      const firstErr = [ordersCount, pendingCount, runsCount, ordersRes, staffRes, menuRes, shiftRes]
         .map((r) => r.error).find(Boolean);
       if (firstErr) throw firstErr;
       setStats({
@@ -77,6 +88,7 @@ export default function ManagerApp() {
       setOrders((ordersRes.data as Order[]) ?? []);
       setStaff((staffRes.data as Staff[]) ?? []);
       setMenu((menuRes.data as MenuItem[]) ?? []);
+      setShifts((shiftRes.data as ShiftRow[]) ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load dashboard data.");
     } finally {
@@ -125,6 +137,47 @@ export default function ManagerApp() {
   return (
     <PortalShell kicker="Manager · Command center" title="Today at the butchery">
       {error && <div className={portalErrorCls}>{error}</div>}
+
+      {shifts.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-px border border-neutral-200 bg-neutral-200">
+          {shifts.map((sh) => {
+            const unsupervised = sh.is_current && sh.managers_rostered === 0;
+            return (
+              <div
+                key={sh.shift_code}
+                className={`flex-1 px-3 py-2 ${
+                  sh.is_current ? "bg-neutral-900 text-white" : "bg-white text-neutral-800"
+                }`}
+              >
+                <p
+                  className={`text-[0.55rem] font-bold uppercase tracking-[0.15em] ${
+                    sh.is_current ? "text-[#ffe500]" : "text-neutral-400"
+                  }`}
+                >
+                  {sh.label}
+                  {sh.is_current ? " · on now" : ""}
+                </p>
+                <p
+                  className={`mt-1 text-[0.65rem] ${
+                    unsupervised ? "font-bold text-red-600" : sh.is_current ? "text-white" : "text-neutral-600"
+                  }`}
+                >
+                  {sh.managers_rostered > 0
+                    ? `${sh.managers_rostered} mgr`
+                    : "no manager"}
+                  {" · "}
+                  {sh.kitchen_rostered} kitchen · {sh.riders_rostered} riders
+                </p>
+                {unsupervised && (
+                  <p className="mt-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-red-500">
+                    Needs cover
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {loading ? (
         <p className="py-8 text-center text-xs uppercase tracking-widest text-neutral-400">
           Loading…

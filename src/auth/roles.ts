@@ -20,6 +20,8 @@ export function homeForRole(role: AppRole | null | undefined): string {
       return "/app";
     case "rider":
       return "/ride";
+    case "kitchen":
+      return "/kitchen";
     case "manager":
       return "/manager";
     case "admin":

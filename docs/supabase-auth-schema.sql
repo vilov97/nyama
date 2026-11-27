@@ -23,7 +23,7 @@ create extension if not exists pgcrypto;
 
 -- App roles. Flat taxonomy, no inheritance (audit §5.1).
 do $$ begin
-  create type app_role as enum ('customer', 'rider', 'manager', 'admin');
+  create type app_role as enum ('customer', 'rider', 'kitchen', 'manager', 'admin');
 exception when duplicate_object then null; end $$;
 
 -- --------------------------------------------------------------------------
@@ -403,3 +403,128 @@ create policy "audit_manager_read" on public.audit_logs
 -- --------------------------------------------------------------------------
 -- Example: archive delivered-order PII older than 12 months, delete PoD > 90d.
 -- (Implement as a service-role cron job in Phase 3; table above is the policy.)
+
+
+-- ---------------------------------------------------------------------------
+-- Operations: shifts, split cooking/delivery status, kitchen role
+-- ---------------------------------------------------------------------------
+
+-- Cooking and delivery are independent facts. `orders.status` stays as the
+-- human-facing rollup for reporting; these carry the truth.
+alter table public.orders
+  add column if not exists cook_status text not null default 'pending'
+    check (cook_status in ('pending','accepted','preparing','ready','done')),
+  add column if not exists delivery_status text not null default 'unassigned'
+    check (delivery_status in ('unassigned','assigned','picked_up','delivered','failed')),
+  add column if not exists updated_at timestamptz not null default now();
+
+-- A delivery belongs to exactly one order, so a second rider cannot claim it.
+alter table public.deliveries
+  add constraint deliveries_order_id_unique unique (order_id);
+
+-- Shifts are wall-clock in Africa/Nairobi; the database runs in UTC, so every
+-- helper converts explicitly. There is intentionally no late-night shift.
+create table if not exists public.shifts (
+  id               uuid primary key default gen_random_uuid(),
+  code             text not null unique check (code in ('morning','afternoon','evening')),
+  label            text not null,
+  start_time       time not null,
+  end_time         time not null,
+  handover_minutes integer not null default 15,
+  created_at       timestamptz not null default now()
+);
+
+alter table public.shifts enable row level security;
+create policy "shifts_read_all" on public.shifts
+  for select using (auth.uid() is not null);
+create policy "shifts_admin_all" on public.shifts
+  for all using (public.is_admin()) with check (public.is_admin());
+
+insert into public.shifts (code, label, start_time, end_time, handover_minutes) values
+  ('morning',   'Morning',   '07:00', '12:00', 15),
+  ('afternoon', 'Afternoon', '12:00', '17:00', 15),
+  ('evening',   'Evening',   '17:00', '21:00', 15)
+on conflict (code) do nothing;
+
+-- Weekly roster: which shift a person works on which weekday (0 = Sunday).
+create table if not exists public.staff_shifts (
+  id         uuid primary key default gen_random_uuid(),
+  profile_id uuid not null references public.profiles (id) on delete cascade,
+  shift_code text not null references public.shifts (code) on update cascade,
+  weekday    smallint not null check (weekday between 0 and 6),
+  is_off     boolean not null default false,
+  created_at timestamptz not null default now(),
+  unique (profile_id, weekday, shift_code)
+);
+
+create index if not exists staff_shifts_profile_idx on public.staff_shifts (profile_id);
+
+alter table public.staff_shifts enable row level security;
+create policy "staff_shifts_read_own" on public.staff_shifts
+  for select using (profile_id = auth.uid());
+create policy "staff_shifts_manager_all" on public.staff_shifts
+  for all using (public.is_manager_or_admin())
+  with check (public.is_manager_or_admin());
+
+-- Shift currently open, in Nairobi time.
+create or replace function public.current_shift()
+returns text language plpgsql stable as $$
+declare
+  v_now  time := (now() at time zone 'Africa/Nairobi')::time;
+  v_code text;
+begin
+  select code into v_code from public.shifts
+   where (start_time < end_time and v_now >= start_time and v_now < end_time)
+      or (start_time > end_time and (v_now >= start_time or v_now < end_time))
+   order by start_time limit 1;
+  return v_code;
+end $$;
+
+create or replace function public.is_closed_hours()
+returns boolean language sql stable as $$ select public.current_shift() is null $$;
+
+-- Kitchen may progress cooking, nothing else.
+create or replace function public.is_kitchen_or_above() returns boolean
+language sql stable as $$ select public.my_role() in ('kitchen','manager','admin') $$;
+
+create policy "orders_kitchen_update" on public.orders
+  for update using (public.is_kitchen_or_above())
+  with check (public.is_kitchen_or_above());
+
+-- The database, not the UI, decides who may move an order.
+create or replace function public.guard_order_transitions()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  caller  app_role := coalesce(public.my_role(), 'customer');
+  allowed boolean := false;
+begin
+  if new.delivery_status is distinct from old.delivery_status then
+    if caller in ('manager','admin') then
+      allowed := true;
+    elsif caller = 'rider' then
+      allowed := exists (select 1 from public.deliveries d
+                          where d.order_id = old.id and d.rider_id = auth.uid())
+        and (
+          (old.delivery_status = 'assigned'  and new.delivery_status = 'picked_up') or
+          (old.delivery_status = 'picked_up' and new.delivery_status in ('delivered','failed'))
+        );
+    end if;
+    if not allowed then
+      raise exception 'delivery_status change not permitted for role %', caller;
+    end if;
+  end if;
+
+  if new.cook_status is distinct from old.cook_status then
+    if caller not in ('kitchen','manager','admin') then
+      raise exception 'cook_status change not permitted for role %', caller;
+    end if;
+  end if;
+
+  new.updated_at = now();
+  return new;
+end $$;
+
+drop trigger if exists guard_order_transitions on public.orders;
+create trigger guard_order_transitions
+  before update on public.orders
+  for each row execute function public.guard_order_transitions();

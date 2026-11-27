@@ -9,6 +9,7 @@ import MfaEnrollPage from "./pages/MfaEnrollPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import CustomerApp from "./pages/CustomerApp";
 import RiderApp from "./pages/RiderApp";
+import KitchenApp from "./pages/KitchenApp";
 import ManagerApp from "./pages/ManagerApp";
 import AdminApp from "./pages/AdminApp";
 
@@ -49,6 +50,14 @@ export default function App() {
             element={
               <RequireRole allow={["rider"]}>
                 <RiderApp />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/kitchen"
+            element={
+              <RequireRole allow={["kitchen", "manager", "admin"]}>
+                <KitchenApp />
               </RequireRole>
             }
           />

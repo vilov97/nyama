@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Canonical app roles — must match the `app_role` enum in
 // docs/supabase-auth-schema.sql (audit §5.1).
-export type AppRole = "customer" | "rider" | "manager" | "admin";
+export type AppRole = "customer" | "rider" | "kitchen" | "manager" | "admin";
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;

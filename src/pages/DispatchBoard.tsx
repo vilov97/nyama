@@ -41,6 +41,8 @@ type DeliveryOrder = {
   route_id: string | null;
   receiver: string | null;
   receiver_phone: string | null;
+  cook_status: "pending" | "accepted" | "preparing" | "ready" | "done";
+  delivery_status: string;
   created_at: string;
 };
 
@@ -87,7 +89,7 @@ export default function DispatchBoard() {
         sb
           .from("orders")
           .select(
-            "id, customer_id, status, total_ksh, is_paid, drop_note, drop_lat, drop_lng, route_id, receiver, receiver_phone, created_at"
+            "id, customer_id, status, total_ksh, is_paid, drop_note, drop_lat, drop_lng, route_id, receiver, receiver_phone, cook_status, delivery_status, created_at"
           )
           .in("status", LIVE_STATUSES)
           .order("created_at", { ascending: true }),
@@ -228,10 +230,8 @@ export default function DispatchBoard() {
           const { error: dErr } = await sb.from("deliveries").delete().eq("id", orderRow.assignment.id);
           if (dErr) throw dErr;
         }
-        if (orderRow.status === "assigned") {
-          const { error: oErr } = await sb.from("orders").update({ status: "ready" }).eq("id", orderRow.id);
-          if (oErr) throw oErr;
-        }
+        // deliveries.status is the source of truth; sync_delivery_status() moves
+        // orders.delivery_status (and therefore the legacy rollup) back to unassigned.
         await load();
         return;
       }
@@ -256,10 +256,6 @@ export default function DispatchBoard() {
           .from("deliveries")
           .insert({ order_id: orderRow.id, rider_id: riderId, status: "assigned" });
         if (iErr) throw iErr;
-      }
-      if (orderRow.status !== "assigned" && orderRow.status !== "picked_up") {
-        const { error: oErr } = await sb.from("orders").update({ status: "assigned" }).eq("id", orderRow.id);
-        if (oErr) throw oErr;
       }
       await load();
     } catch (e) {
