@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 
 export default function Hero() {
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -56,12 +57,12 @@ export default function Hero() {
 
         {/* CTAs */}
         <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <a
-            href="#menu"
+          <Link
+            to="/shop"
             className="inline-block bg-[#ffe500] px-8 py-3.5 text-xs font-bold uppercase tracking-wider text-neutral-900 no-underline transition-all hover:bg-neutral-900 hover:text-white"
           >
             Order Now
-          </a>
+          </Link>
           <a
             href="#about"
             className="inline-block border-2 border-neutral-900 px-8 py-3.5 text-xs font-bold uppercase tracking-wider text-neutral-900 no-underline transition-all hover:bg-neutral-900 hover:text-white"

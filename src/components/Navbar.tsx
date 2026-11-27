@@ -38,7 +38,7 @@ export default function Navbar() {
             Sign in
           </Link>
           <Link
-            to="/app"
+            to="/shop"
             className="cursor-pointer bg-[#ffe500] px-5 py-2 text-xs font-bold uppercase tracking-wider text-neutral-900 no-underline transition-all hover:bg-neutral-900 hover:text-white"
           >
             Order Now
@@ -91,7 +91,7 @@ export default function Navbar() {
               Sign in
             </Link>
             <Link
-              to="/app"
+              to="/shop"
               onClick={() => setMobileOpen(false)}
               className="w-full cursor-pointer bg-[#ffe500] px-5 py-3 text-center text-xs font-bold uppercase tracking-wider text-neutral-900 no-underline transition-all hover:bg-neutral-900 hover:text-white"
             >

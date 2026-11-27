@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getSupabase } from "../lib/supabase";
 import { useAuth } from "../auth/AuthProvider";
 import PortalShell, { Card, Empty, portalErrorCls, smallBtnCls } from "../auth/PortalShell";
+import { dueLabel } from "../lib/checkout";
 
 type Run = {
   delivery_id: string;
@@ -10,6 +11,9 @@ type Run = {
   created_at: string;
   receiver: string | null;
   receiver_phone: string | null;
+  drop_address: string | null;
+  due_from: string;
+  due_by: string;
   drop_lat: number | null;
   drop_lng: number | null;
   drop_note: string | null;
@@ -25,7 +29,8 @@ type Run = {
  *
  * Reads public.rider_runs — a definer view scoped to rider_id = auth.uid().
  * Riders have no SELECT policy on `orders`, so this view is how they learn
- * where to go without being handed the whole order table.
+ * where to go without being handed the whole order table. Runs are listed by
+ * deadline, and status changes go through the rider_advance() RPC.
  */
 export default function RiderApp() {
   const { user } = useAuth();
@@ -41,8 +46,8 @@ export default function RiderApp() {
     try {
       const { data, error: qErr } = await getSupabase()
         .from("rider_runs")
-        .select("delivery_id, order_id, delivery_status, created_at, receiver, receiver_phone, drop_lat, drop_lng, drop_note, total_ksh, is_paid, cook_status, items")
-        .order("created_at");
+        .select("delivery_id, order_id, delivery_status, created_at, receiver, receiver_phone, drop_address, drop_lat, drop_lng, drop_note, total_ksh, is_paid, cook_status, due_from, due_by, items")
+        .order("due_by");
       if (qErr) throw qErr;
       setRuns((data as Run[]) ?? []);
     } catch (e) {
@@ -60,10 +65,13 @@ export default function RiderApp() {
     setBusyId(id);
     setError(null);
     try {
-      const { error: uErr } = await getSupabase()
-        .from("deliveries")
-        .update({ status: next })
-        .eq("id", id);
+      // RPC, not a table update. A rider's SELECT policy only admits active
+      // runs, and Postgres applies SELECT policies to the row *after* an
+      // update, so a direct UPDATE to "delivered" is rejected with 42501.
+      const { error: uErr } = await getSupabase().rpc("rider_advance", {
+        p_delivery_id: id,
+        p_next: next,
+      });
       if (uErr) throw uErr;
       await load();
     } catch (e) {
@@ -97,9 +105,24 @@ export default function RiderApp() {
                         {r.receiver ?? "Customer"}
                       </p>
                       <p className="mt-0.5 font-mono text-[0.65rem] text-neutral-400">
-                        Order {r.order_id.slice(0, 8)}… · dispatched{" "}
-                        {new Date(r.created_at).toLocaleTimeString()}
+                        Order #{r.order_id.slice(0, 6)}
                       </p>
+                      {(() => {
+                        const due = dueLabel(r, new Date());
+                        return (
+                          <p
+                            className={`mt-1 text-[0.7rem] font-bold ${
+                              due.tone === "late"
+                                ? "text-red-600"
+                                : due.tone === "soon"
+                                  ? "text-amber-700"
+                                  : "text-neutral-700"
+                            }`}
+                          >
+                            {due.text}
+                          </p>
+                        );
+                      })()}
                     </div>
                     <div className="text-right">
                       <p
@@ -127,8 +150,10 @@ export default function RiderApp() {
                     </p>
                   )}
 
-                  {r.drop_note && (
+                  {(r.drop_address || r.drop_note) && (
                     <p className="mt-2 border-l-2 border-[#ffe500] pl-2 text-xs text-neutral-700">
+                      {r.drop_address && <span className="font-semibold">{r.drop_address}</span>}
+                      {r.drop_address && r.drop_note ? " — " : ""}
                       {r.drop_note}
                     </p>
                   )}

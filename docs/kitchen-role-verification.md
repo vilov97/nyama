@@ -209,6 +209,10 @@ The UI already does two requests; do not "optimise" it into one CTE.
 
 ## 10. Order creation
 
+> **Superseded.** `/app/new` now redirects to `/shop`. Customers order through
+> `/shop` and `/checkout`, and orders are created only by the `place_order()`
+> RPC; direct inserts into `orders` are refused. See `docs/shop-checkout-schema.sql`.
+
 `/app/new` (customer only) closes the last blocking gap: fixtures were the only
 source of orders, so the kitchen had nothing real to cook. The page:
 

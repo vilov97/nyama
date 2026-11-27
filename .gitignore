@@ -38,3 +38,6 @@ supabase/.temp/
 
 # Local automation scaffolding, never pushed
 .github/workflows/
+
+# Local scratch (image sources, tool caches)
+.cache/

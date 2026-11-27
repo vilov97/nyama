@@ -12,6 +12,7 @@ import AuthLayout, {
 } from "../auth/AuthLayout";
 import PasswordInput from "../auth/PasswordInput";
 import { homeForRole } from "../auth/roles";
+import { cart } from "../lib/cart";
 import SetupNotice from "../components/SetupNotice";
 import { authErrorDetail, describeAuthError } from "../lib/authErrors";
 
@@ -59,7 +60,9 @@ export default function LoginPage() {
     }
 
     await refreshProfile();
-    navigate(homeForRole(role), { replace: true });
+    // A customer who signed in on the way to paying goes back to checkout.
+    const next = role === "customer" && cart.get().length > 0 ? "/checkout" : homeForRole(role);
+    navigate(next, { replace: true });
   };
 
   const handleCredentials = async (e: FormEvent) => {

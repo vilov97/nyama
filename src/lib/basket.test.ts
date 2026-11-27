@@ -5,11 +5,10 @@ import {
   isValidPin,
   itemCount,
   MAX_QTY_PER_LINE,
-  orderBlocker,
+  reconcileBasket,
   removeLine,
   removeOneFromBasket,
   setLineQty,
-  toOrderItems,
   type BasketLine,
   type MenuItem,
 } from "./basket";
@@ -113,18 +112,39 @@ describe("basket arithmetic", () => {
     expect(itemCount([])).toBe(0);
   });
 
-  it("snapshots the name and price so later menu edits cannot rewrite history", () => {
-    const rows = toOrderItems(addToBasket([], beef));
-    expect(rows[0]).toMatchObject({
-      menu_item_id: beef.id,
-      name_snapshot: "Beef Premium",
-      unit_price_ksh: 950,
-      qty: 1,
-    });
-    // Renaming the menu item afterwards must not change the stored row.
-    const renamed = { ...beef, name: "Beef (new name)", price_ksh: 1200 };
-    expect(rows[0]!.name_snapshot).toBe("Beef Premium");
-    expect(toOrderItems(addToBasket([], renamed))[0]!.name_snapshot).toBe("Beef (new name)");
+  it("snapshots the name and price so later menu edits cannot rewrite the line", () => {
+    const lines = addToBasket([], beef);
+    expect(lines[0]).toMatchObject({ name: "Beef Premium", unit_price_ksh: 950, unit: "kg" });
+  });
+});
+
+describe("reconcileBasket", () => {
+  const stored: BasketLine[] = addToBasket(addToBasket(addToBasket([], beef), beef), goat);
+
+  it("leaves an up-to-date basket alone", () => {
+    const { lines, changes } = reconcileBasket(stored, [beef, goat]);
+    expect(changes).toEqual([]);
+    expect(basketTotal(lines)).toBe(2 * 950 + 700);
+  });
+
+  it("refreshes a changed price and reports it", () => {
+    const { lines, changes } = reconcileBasket(stored, [{ ...beef, price_ksh: 1000 }, goat]);
+    expect(changes).toEqual([{ kind: "repriced", name: "Beef Premium", from: 950, to: 1000 }]);
+    expect(basketTotal(lines)).toBe(2 * 1000 + 700);
+  });
+
+  it("drops items that left the menu or are sold out today", () => {
+    const gone = reconcileBasket(stored, [goat]);
+    expect(gone.lines.map((l) => l.name)).toEqual(["Goat Choma Cut"]);
+    expect(gone.changes).toEqual([{ kind: "removed", name: "Beef Premium" }]);
+
+    const soldOut = reconcileBasket(stored, [beef, { ...goat, is_available: false }]);
+    expect(soldOut.lines.map((l) => l.name)).toEqual(["Beef Premium"]);
+  });
+
+  it("keeps the customer's quantities", () => {
+    const { lines } = reconcileBasket(stored, [beef, goat]);
+    expect(lines.map((l) => l.qty)).toEqual([2, 1]);
   });
 });
 
@@ -146,25 +166,5 @@ describe("drop pin validation", () => {
     expect(isValidPin(91, 36)).toBe(false);
     expect(isValidPin(-1, 181)).toBe(false);
     expect(isValidPin(NaN, 36)).toBe(false);
-  });
-});
-
-describe("orderBlocker", () => {
-  const good = { lines: addToBasket([], beef), lat: -1.29, lng: 36.82, receiver: "Njoroge" };
-
-  it("clears when items, pin and receiver are all present", () => {
-    expect(orderBlocker(good)).toBeNull();
-  });
-
-  it("blocks an empty basket", () => {
-    expect(orderBlocker({ ...good, lines: [] })).toMatch(/at least one item/i);
-  });
-
-  it("blocks a missing pin", () => {
-    expect(orderBlocker({ ...good, lat: null })).toMatch(/pin/i);
-  });
-
-  it("blocks a blank receiver", () => {
-    expect(orderBlocker({ ...good, receiver: "   " })).toMatch(/receiving/i);
   });
 });

@@ -11,6 +11,7 @@ import {
   sequenceStops,
 } from "../lib/dispatch";
 import { depotIcon, pinIcon, useLeafletMap, withAlpha } from "../lib/leaflet";
+import { dueLabel, isDueToday, type DueTone } from "../lib/checkout";
 
 type Route = { id: string; name: string; color: string };
 
@@ -44,6 +45,24 @@ type DeliveryOrder = {
   cook_status: "pending" | "accepted" | "preparing" | "ready" | "done";
   delivery_status: string;
   created_at: string;
+  drop_address: string | null;
+  due_from: string;
+  due_by: string;
+};
+
+const DUE_CLS: Record<DueTone, string> = {
+  later: "text-neutral-500",
+  ok: "text-neutral-600",
+  soon: "text-amber-700",
+  late: "text-red-600",
+};
+
+const COOK_LABEL: Record<string, string> = {
+  pending: "Not started",
+  accepted: "Accepted",
+  preparing: "Cooking",
+  ready: "Ready",
+  done: "Ready",
 };
 
 type CustomerProfile = {
@@ -89,10 +108,12 @@ export default function DispatchBoard() {
         sb
           .from("orders")
           .select(
-            "id, customer_id, status, total_ksh, is_paid, drop_note, drop_lat, drop_lng, route_id, receiver, receiver_phone, cook_status, delivery_status, created_at"
+            "id, customer_id, status, total_ksh, is_paid, drop_note, drop_lat, drop_lng, route_id, receiver, receiver_phone, cook_status, delivery_status, created_at, drop_address, due_from, due_by"
           )
           .in("status", LIVE_STATUSES)
-          .order("created_at", { ascending: true }),
+          // Pickup orders are handed over at the counter and never need a rider.
+          .eq("fulfilment", "delivery")
+          .order("due_by", { ascending: true }),
         sb.from("routes").select("id, name, color").order("name"),
         sb
           .from("profiles")
@@ -134,9 +155,14 @@ export default function DispatchBoard() {
     void load();
   }, [load]);
 
+  // Today's board carries today's work (and anything overdue). Orders booked
+  // for a later day are counted but kept off the map until their day comes.
+  const now = new Date();
+  const laterCount = orders.filter((o) => !isDueToday(o.due_from, now)).length;
+
   const rows: OrderRow[] = useMemo(
     () =>
-      orders.map((o) => {
+      orders.filter((o) => isDueToday(o.due_from, new Date())).map((o) => {
         const route = routes.find((r) => r.id === o.route_id) ?? null;
         const assignment = assignments.find((a) => a.order_id === o.id) ?? null;
         const rider = staff.find((s) => s.id === assignment?.rider_id) ?? null;
@@ -371,8 +397,29 @@ export default function DispatchBoard() {
                 </div>
                 <div className="flex justify-between gap-2">
                   <dt className="text-neutral-400">Drop</dt>
-                  <dd className="max-w-[60%] truncate text-right text-neutral-800">
-                    {profiles[selected.customer_id]?.drop_address || selected.drop_note || "—"}
+                  <dd className="max-w-[60%] text-right text-neutral-800">
+                    {selected.drop_address || profiles[selected.customer_id]?.drop_address || "—"}
+                    {selected.drop_note && (
+                      <span className="block text-neutral-500">{selected.drop_note}</span>
+                    )}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-neutral-400">Due</dt>
+                  <dd className={`text-right font-semibold ${DUE_CLS[dueLabel(selected, now).tone]}`}>
+                    {dueLabel(selected, now).text}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt className="text-neutral-400">Kitchen</dt>
+                  <dd
+                    className={`text-right font-semibold ${
+                      selected.cook_status === "ready" || selected.cook_status === "done"
+                        ? "text-green-700"
+                        : "text-neutral-800"
+                    }`}
+                  >
+                    {COOK_LABEL[selected.cook_status] ?? selected.cook_status}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-2">
@@ -441,7 +488,7 @@ export default function DispatchBoard() {
                 Unassigned · {unassigned.length}
               </p>
               {unassigned.length === 0 ? (
-                <p className="mt-1 text-[0.7rem] text-neutral-400">Every live order has a rider.</p>
+                <p className="mt-1 text-[0.7rem] text-neutral-400">Every order due today has a rider.</p>
               ) : (
                 <ul className="mt-2 space-y-1.5">
                   {unassigned.map((row) => (
@@ -457,14 +504,35 @@ export default function DispatchBoard() {
                           className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                           style={{ background: pinColor(row.route?.color) }}
                         />
-                        <span className="truncate">{profiles[row.customer_id]?.full_name || row.id.slice(0, 8)}</span>
-                        <span className="ml-auto shrink-0 font-mono text-[0.6rem] text-neutral-400">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">
+                            {row.receiver || profiles[row.customer_id]?.full_name || row.id.slice(0, 8)}
+                          </span>
+                          <span className={`block truncate text-[0.6rem] ${DUE_CLS[dueLabel(row, now).tone]}`}>
+                            {dueLabel(row, now).text}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right font-mono text-[0.6rem] text-neutral-400">
+                          <span
+                            className={`block font-sans font-bold uppercase tracking-wider ${
+                              row.cook_status === "ready" || row.cook_status === "done"
+                                ? "text-green-700"
+                                : "text-neutral-400"
+                            }`}
+                          >
+                            {COOK_LABEL[row.cook_status] ?? row.cook_status}
+                          </span>
                           {row.coord ? "pinned" : "no pin"}
                         </span>
                       </button>
                     </li>
                   ))}
                 </ul>
+              )}
+              {laterCount > 0 && (
+                <p className="mt-2 text-[0.65rem] text-neutral-500">
+                  {laterCount} more booked for later days. They appear here on the day.
+                </p>
               )}
             </div>
           )}

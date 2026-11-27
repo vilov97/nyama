@@ -1,4 +1,4 @@
-import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthProvider";
 import { RequireAuth, RequireRole } from "./auth/RequireRole";
 import HomePage from "./pages/HomePage";
@@ -8,7 +8,8 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import MfaEnrollPage from "./pages/MfaEnrollPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import CustomerApp from "./pages/CustomerApp";
-import NewOrderPage from "./pages/NewOrderPage";
+import ShopPage from "./pages/ShopPage";
+import CheckoutPage from "./pages/CheckoutPage";
 import RiderApp from "./pages/RiderApp";
 import KitchenApp from "./pages/KitchenApp";
 import ManagerApp from "./pages/ManagerApp";
@@ -17,7 +18,9 @@ import AdminApp from "./pages/AdminApp";
 /**
  * Route map (UX layer — RLS enforces the same rules server-side, audit §5.5):
  *   /                 public homepage            /login /signup /forgot-password (public)
+ *   /shop             public catalogue + cart    /checkout customer only
  *   /mfa-enroll       any signed-in user         /app customer · /ride rider
+ *   /kitchen          kitchen+manager+admin
  *   /manager          manager+admin              /admin admin only
  */
 export default function App() {
@@ -38,14 +41,17 @@ export default function App() {
               </RequireAuth>
             }
           />
+          <Route path="/shop" element={<ShopPage />} />
           <Route
-            path="/app/new"
+            path="/checkout"
             element={
               <RequireRole allow={["customer"]}>
-                <NewOrderPage />
+                <CheckoutPage />
               </RequireRole>
             }
           />
+          {/* The old single-page order form. Keep the link working. */}
+          <Route path="/app/new" element={<Navigate to="/shop" replace />} />
           <Route
             path="/app"
             element={

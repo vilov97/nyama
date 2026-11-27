@@ -9,15 +9,22 @@ import PortalShell, {
   tdCls,
   thCls,
 } from "../auth/PortalShell";
+import { dueLabel } from "../lib/checkout";
 
 type Order = {
   id: string;
-  customer_id: string;
+  receiver: string | null;
+  fulfilment: "delivery" | "pickup";
   status: string;
   total_ksh: number;
   is_paid: boolean;
   created_at: string;
+  due_from: string;
+  due_by: string;
 };
+
+/** Orders that are finished one way or another: no deadline left to show. */
+const CLOSED = ["delivered", "collected", "cancelled", "failed"];
 
 type Staff = {
   id: string;
@@ -70,7 +77,7 @@ export default function ManagerApp() {
           sb.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
           sb.from("deliveries").select("id", { count: "exact", head: true })
             .in("status", ["assigned", "picked_up"]),
-          sb.from("orders").select("id, customer_id, status, total_ksh, is_paid, created_at")
+          sb.from("orders").select("id, receiver, fulfilment, status, total_ksh, is_paid, created_at, due_from, due_by")
             .order("created_at", { ascending: false }).limit(15),
           sb.from("profiles").select("id, full_name, role, phone, is_active")
             .in("role", ["rider", "manager"]).order("role").order("full_name"),
@@ -210,22 +217,39 @@ export default function ManagerApp() {
                   <thead>
                     <tr>
                       <th className={thCls}>Order</th>
-                      <th className={thCls}>Customer</th>
+                      <th className={thCls}>For</th>
+                      <th className={thCls}>Type</th>
                       <th className={thCls}>Status</th>
+                      <th className={thCls}>Due</th>
                       <th className={thCls}>Total</th>
                       <th className={thCls}>Paid</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {orders.map((o) => (
+                    {orders.map((o) => {
+                      const due = CLOSED.includes(o.status) ? null : dueLabel(o, new Date());
+                      return (
                       <tr key={o.id}>
-                        <td className={`${tdCls} font-mono`}>{o.id.slice(0, 8)}…</td>
-                        <td className={`${tdCls} font-mono`}>{o.customer_id.slice(0, 8)}…</td>
-                        <td className={tdCls}>{o.status}</td>
+                        <td className={`${tdCls} font-mono`}>#{o.id.slice(0, 6)}</td>
+                        <td className={tdCls}>{o.receiver || "—"}</td>
+                        <td className={tdCls}>{o.fulfilment === "pickup" ? "Pickup" : "Delivery"}</td>
+                        <td className={tdCls}>{o.status.replace("_", " ")}</td>
+                        <td
+                          className={`${tdCls} ${
+                            due?.tone === "late"
+                              ? "font-bold text-red-600"
+                              : due?.tone === "soon"
+                                ? "font-bold text-amber-700"
+                                : ""
+                          }`}
+                        >
+                          {due ? due.text : "—"}
+                        </td>
                         <td className={tdCls}>KSh {o.total_ksh.toLocaleString()}</td>
                         <td className={tdCls}>{o.is_paid ? "Yes" : "No"}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

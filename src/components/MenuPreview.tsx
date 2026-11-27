@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 
 const items = [
   {
@@ -110,20 +111,23 @@ export default function MenuPreview() {
                   /{item.unit}
                 </span>
               </p>
-              <button className="mt-3 w-full cursor-pointer border border-neutral-200 py-1.5 text-[0.55rem] font-bold uppercase tracking-wider text-neutral-500 opacity-0 transition-all group-hover:opacity-100 hover:bg-[#ffe500] hover:text-neutral-900">
-                Add to Order
-              </button>
+              <Link
+                to="/shop"
+                className="mt-3 block w-full border border-neutral-200 py-1.5 text-[0.55rem] font-bold uppercase tracking-wider text-neutral-500 no-underline opacity-0 transition-all group-hover:opacity-100 hover:bg-[#ffe500] hover:text-neutral-900"
+              >
+                Order in the shop
+              </Link>
             </div>
           ))}
         </div>
 
         <div className="mt-10 text-center">
-          <a
-            href="#"
+          <Link
+            to="/shop"
             className="inline-block border-2 border-neutral-900 px-8 py-3 text-xs font-bold uppercase tracking-wider text-neutral-900 no-underline transition-all hover:bg-neutral-900 hover:text-white"
           >
-            View Full Menu
-          </a>
+            Open the shop
+          </Link>
         </div>
       </div>
     </section>
