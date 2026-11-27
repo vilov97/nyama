@@ -167,7 +167,7 @@ the user's rule that a manager must supervise every shift.
 
 ## 8. Fixture
 
-`rbac-kitchen@kwamaiko.test` / `Test1234!`, `user_role = kitchen`, rostered
+`rbac-kitchen@kwamaiko.test` (password rotated; not kept in this repo), `user_role = kitchen`, rostered
 across all three shifts. Created by direct `auth.users` + `auth.identities`
 insert, matching the other `rbac-*` fixtures. There is no auth-admin tool in the
 connector, and the sandbox cannot reach Supabase over HTTP, so this is the
