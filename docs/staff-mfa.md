@@ -51,6 +51,29 @@ challenge tells the user to reload for a fresh one.
 `src/auth/mfaGate.test.ts` (7 tests) pins the rule, including "never let an aal1
 admin through" across several allow-lists.
 
+## The one exemption: the test manager
+
+`rbac-manager@kwamaiko.test` is a shared test login, so nobody can hold an
+authenticator for it. Its account carries `app_metadata.mfa_exempt = true`, and
+`staffMfaRequired()` in `src/auth/roles.ts` lets a **manager** with that flag in
+on a password alone.
+
+- The flag lives in `auth.users.raw_app_meta_data`, which only the service role
+  can write. A signed-in user cannot set it on themselves.
+- Only the boolean `true` counts.
+- Admins are never exempt, whatever the flag says.
+
+Before real staff use the site, delete the account or remove the flag:
+
+```sql
+update auth.users
+   set raw_app_meta_data = raw_app_meta_data - 'mfa_exempt'
+ where email = 'rbac-manager@kwamaiko.test';
+```
+
+No real manager account should ever carry this flag. To list every account that
+does: `select email from auth.users where raw_app_meta_data ? 'mfa_exempt';`
+
 ## Operational notes
 
 - Admins cannot lock themselves out through this flow: enrolment is only

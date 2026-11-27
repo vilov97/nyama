@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { getSupabase, isSupabaseConfigured, type AppRole } from "../lib/supabase";
+import { staffMfaRequired } from "./roles";
 
 type AuthState = {
   /** False until VITE_SUPABASE_* env is wired (Phase 0). Pages degrade gracefully. */
@@ -107,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     //   mfaStepUpRequired  — factor verified but this session is only aal1,
     //                        so they must verify (otherwise abandoning the
     //                        prompt would leave a usable password-only session)
-    if (resolved === "manager" || resolved === "admin") {
+    if (staffMfaRequired(resolved, user.app_metadata)) {
       const [{ data: factors, error: fErr }, { data: levels, error: lErr }] =
         await Promise.all([
           supabase.auth.mfa.listFactors(),
